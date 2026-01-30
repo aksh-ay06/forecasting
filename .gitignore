@@ -1,0 +1,13 @@
+artifacts/
+data/*.csv
+data/*.zip
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.env
+mlruns/
+*.parquet
+.DS_Store
