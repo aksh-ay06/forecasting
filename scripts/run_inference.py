@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-"""Run batch inference on test.csv and generate submission file."""
 
 import logging
 import sys
@@ -22,11 +21,9 @@ def main():
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
 
-    # Load test data
     test = load_test()
     print(f"Test data: {len(test)} rows")
 
-    # Load all available history
     available_semanas = []
     for s in range(3, 12):
         path = PROCESSED_DIR / f"semana_{s}.parquet"
@@ -40,11 +37,9 @@ def main():
     history = load_parquet_semanas(available_semanas)
     print(f"History: {len(history)} rows (Semanas {available_semanas})")
 
-    # Load model
     model = GBMModel.load()
     feature_cols = model.feature_names
 
-    # Process each test Semana separately
     all_preds = []
     for semana in sorted(test["Semana"].unique()):
         test_s = test[test["Semana"] == semana]
@@ -52,7 +47,6 @@ def main():
 
         feats = build_features(test_s, history, target_semana=semana, include_target=False)
 
-        # Ensure columns match
         for col in feature_cols:
             if col not in feats.columns:
                 feats[col] = 0

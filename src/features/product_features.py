@@ -1,9 +1,6 @@
-"""Product metadata features from parsed product names."""
-
 import logging
 
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
 
 from src.config import FEATURES_DIR
 
@@ -11,11 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 def load_product_features() -> pd.DataFrame:
-    """Load pre-computed product metadata features.
-
-    Returns DataFrame with columns:
-        Producto_ID, brand_encoded, weight_g, pieces, has_promo
-    """
     path = FEATURES_DIR / "product_metadata.parquet"
     if not path.exists():
         raise FileNotFoundError(
@@ -24,20 +16,22 @@ def load_product_features() -> pd.DataFrame:
 
     products = pd.read_parquet(path)
 
-    # Label-encode brand
-    le = LabelEncoder()
-    products["brand_encoded"] = le.fit_transform(
-        products["brand"].fillna("UNK")
-    ).astype("uint16")
+    encoding_path = FEATURES_DIR / "brand_encoding.parquet"
+    if encoding_path.exists():
+        brand_enc = pd.read_parquet(encoding_path)
+        products = products.merge(brand_enc, on="brand", how="left")
+        products["brand_encoded"] = products["brand_encoded"].fillna(
+            brand_enc["brand_encoded"].max() + 1
+        ).astype("uint16")
+    else:
+        raise FileNotFoundError(
+            f"Brand encoding not found at {encoding_path}. Run preprocessing first."
+        )
 
     result = products[["Producto_ID", "brand_encoded", "weight_g", "pieces", "has_promo"]].copy()
     result["weight_g"] = result["weight_g"].astype("float32")
     result["pieces"] = result["pieces"].astype("uint8")
     result["has_promo"] = result["has_promo"].astype("uint8")
-
-    # Also save brand mapping for backoff
-    brand_map = products[["Producto_ID", "brand"]].copy()
-    brand_map.to_parquet(FEATURES_DIR / "product_brand_map.parquet", index=False)
 
     logger.info("Product features: %d products, %d unique brands",
                 len(result), result["brand_encoded"].nunique())

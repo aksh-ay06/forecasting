@@ -1,8 +1,5 @@
-"""Central configuration for the Grupo Bimbo demand forecasting system."""
-
 from pathlib import Path
 
-# ── Paths ──────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 ARTIFACTS_DIR = ROOT_DIR / "artifacts"
@@ -11,21 +8,18 @@ FEATURES_DIR = ARTIFACTS_DIR / "features"
 MODELS_DIR = ARTIFACTS_DIR / "models"
 REPORTS_DIR = ARTIFACTS_DIR / "reports"
 
-# Raw CSVs
 TRAIN_CSV = DATA_DIR / "train.csv"
 TEST_CSV = DATA_DIR / "test.csv"
 PRODUCT_CSV = DATA_DIR / "producto_tabla.csv"
 TOWN_CSV = DATA_DIR / "town_state.csv"
 CLIENT_CSV = DATA_DIR / "cliente_tabla.csv"
 
-# ── Dtype optimisation ─────────────────────────────────────────────────
-# Reduces ~74M rows from ~6 GB to ~2.4 GB in memory
 TRAIN_DTYPES = {
     "Semana": "uint8",
     "Agencia_ID": "uint16",
     "Canal_ID": "uint8",
     "Ruta_SAK": "uint16",
-    "Cliente_ID": "int32",
+    "Cliente_ID": "int64",
     "Producto_ID": "uint16",
     "Venta_uni_hoy": "int32",
     "Venta_hoy": "float32",
@@ -40,20 +34,17 @@ TEST_DTYPES = {
     "Agencia_ID": "uint16",
     "Canal_ID": "uint8",
     "Ruta_SAK": "uint16",
-    "Cliente_ID": "int32",
+    "Cliente_ID": "int64",
     "Producto_ID": "uint16",
 }
 
-# ── Data loading ───────────────────────────────────────────────────────
 CHUNK_SIZE = 5_000_000
 
-# ── Temporal constants ─────────────────────────────────────────────────
-TRAIN_SEMANAS = list(range(3, 10))   # weeks 3-9
+TRAIN_SEMANAS = list(range(3, 10))
 VAL_SEMANA = 9
 TEST_SEMANAS = [10, 11]
 TARGET_COL = "Demanda_uni_equil"
 
-# ── Feature engineering ────────────────────────────────────────────────
 LAG_WEEKS = [1, 2, 3, 4, 5]
 ROLLING_WINDOWS = [2, 3, 4]
 AGG_GROUP_KEYS = {
@@ -66,7 +57,6 @@ AGG_GROUP_KEYS = {
     "agency_product": ["Agencia_ID", "Producto_ID"],
 }
 
-# ── LightGBM hyperparameters ──────────────────────────────────────────
 LGB_PARAMS = {
     "objective": "tweedie",
     "tweedie_variance_power": 1.5,
@@ -87,27 +77,22 @@ LGB_PARAMS = {
 LGB_NUM_BOOST_ROUND = 1500
 LGB_EARLY_STOPPING_ROUNDS = 50
 
-# Quantile models for confidence intervals
 LGB_QUANTILE_PARAMS_LO = {**LGB_PARAMS, "objective": "quantile", "alpha": 0.1}
 LGB_QUANTILE_PARAMS_HI = {**LGB_PARAMS, "objective": "quantile", "alpha": 0.9}
-# quantile objective uses quantile loss, not rmse
 LGB_QUANTILE_PARAMS_LO["metric"] = "quantile"
 LGB_QUANTILE_PARAMS_HI["metric"] = "quantile"
 
-# ── Backoff hierarchy ─────────────────────────────────────────────────
 BACKOFF_LEVELS = [
-    ("Cliente_ID", "Producto_ID"),    # Level 0: most granular
-    ("Ruta_SAK", "Producto_ID"),      # Level 1
-    ("Agencia_ID", "Producto_ID"),    # Level 2
-    ("Producto_ID",),                 # Level 3
-    ("brand",),                       # Level 4
-    (),                               # Level 5: global mean
+    ("Cliente_ID", "Producto_ID"),
+    ("Ruta_SAK", "Producto_ID"),
+    ("Agencia_ID", "Producto_ID"),
+    ("Producto_ID",),
+    ("brand",),
+    (),
 ]
 
-# ── API ────────────────────────────────────────────────────────────────
 API_HOST = "0.0.0.0"
 API_PORT = 8000
 
-# ── MLflow ─────────────────────────────────────────────────────────────
 MLFLOW_EXPERIMENT = "grupo_bimbo_demand"
 MLFLOW_TRACKING_URI = "mlruns"

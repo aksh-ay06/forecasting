@@ -1,5 +1,3 @@
-"""Inference logic with feature lookup for real-time predictions."""
-
 import logging
 
 import numpy as np
@@ -14,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class Predictor:
-    """Loads model and feature stores at startup for real-time inference."""
 
     def __init__(self):
         self.model: GBMModel | None = None
@@ -22,12 +19,10 @@ class Predictor:
         self.feature_cols: list[str] = []
 
     def load(self) -> None:
-        """Load model and historical data for feature computation."""
         logger.info("Loading model …")
         self.model = GBMModel.load(MODELS_DIR)
         self.feature_cols = self.model.feature_names
 
-        # Load historical data for feature computation
         logger.info("Loading historical data for features …")
         available = []
         for s in range(3, 12):
@@ -44,43 +39,40 @@ class Predictor:
             self.history = pd.DataFrame()
 
     def predict_single(self, request: dict) -> tuple[float, float, float]:
-        """Predict demand for a single request.
-
-        Parameters
-        ----------
-        request : dict with keys Semana, Agencia_ID, Canal_ID, Ruta_SAK, Cliente_ID, Producto_ID.
-
-        Returns
-        -------
-        (predicted_demand, confidence_lower, confidence_upper)
-        """
         target_df = pd.DataFrame([request])
         return self._predict(target_df)
 
     def predict_batch(self, requests: list[dict]) -> list[tuple[float, float, float]]:
-        """Predict demand for a batch of requests."""
         target_df = pd.DataFrame(requests)
-        results = []
-        # Process all at once for efficiency
-        feats = build_features(
-            target_df, self.history,
-            target_semana=target_df["Semana"].iloc[0],
-            include_target=False,
-        )
+        target_df["_batch_idx"] = range(len(target_df))
 
-        # Ensure columns match model's expected features
-        for col in self.feature_cols:
-            if col not in feats.columns:
-                feats[col] = 0
-        X = feats[self.feature_cols].values
+        all_results = pd.DataFrame(index=range(len(target_df)),
+                                   columns=["pred", "lower", "upper"])
 
-        pred, lower, upper = self.model.predict_interval(X)
-        for i in range(len(pred)):
-            results.append((float(pred[i]), float(lower[i]), float(upper[i])))
-        return results
+        for semana, group in target_df.groupby("Semana"):
+            feats = build_features(
+                group.drop(columns=["_batch_idx"]), self.history,
+                target_semana=int(semana),
+                include_target=False,
+            )
+
+            for col in self.feature_cols:
+                if col not in feats.columns:
+                    feats[col] = 0
+            X = feats[self.feature_cols].values
+
+            pred, lower, upper = self.model.predict_interval(X)
+            idx = group["_batch_idx"].values
+            all_results.loc[idx, "pred"] = pred
+            all_results.loc[idx, "lower"] = lower
+            all_results.loc[idx, "upper"] = upper
+
+        return [
+            (float(row["pred"]), float(row["lower"]), float(row["upper"]))
+            for _, row in all_results.iterrows()
+        ]
 
     def _predict(self, target_df: pd.DataFrame) -> tuple[float, float, float]:
-        """Internal prediction for a single-row DataFrame."""
         target_semana = int(target_df["Semana"].iloc[0])
         feats = build_features(
             target_df, self.history,

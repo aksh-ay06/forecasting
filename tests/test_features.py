@@ -1,5 +1,3 @@
-"""Unit tests for feature engineering modules."""
-
 import pytest
 import pandas as pd
 import numpy as np
@@ -11,7 +9,6 @@ from src.data.metadata import parse_product_name
 
 @pytest.fixture
 def sample_history():
-    """Create a small synthetic history DataFrame."""
     np.random.seed(42)
     rows = []
     for semana in range(3, 8):
@@ -37,11 +34,8 @@ class TestLagFeatures:
         assert "lag_2" in result.columns
 
     def test_no_future_leakage(self, sample_history):
-        """Ensure no data from target_semana or later is used."""
         result = build_lag_features(sample_history, target_semana=5)
-        # lag_1 should use semana 4, lag_2 should use semana 3
         assert "lag_1" in result.columns
-        # lag_3 for target=5 would need semana 2 which doesn't exist
         assert result["lag_3"].isna().all() if "lag_3" in result.columns else True
 
     def test_rolling_stats(self, sample_history):
@@ -65,10 +59,8 @@ class TestAggFeatures:
         assert "client_std" in result["client"].columns
 
     def test_no_future_data(self, sample_history):
-        """Aggregations should only use data before target_semana."""
         result_5 = build_agg_features(sample_history, target_semana=5)
         result_7 = build_agg_features(sample_history, target_semana=7)
-        # More history available for target 7, so counts should be higher
         assert result_7["product"]["product_count"].sum() >= result_5["product"]["product_count"].sum()
 
 

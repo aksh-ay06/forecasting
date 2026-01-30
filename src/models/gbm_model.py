@@ -1,5 +1,3 @@
-"""LightGBM wrapper with MLflow logging."""
-
 import logging
 from pathlib import Path
 
@@ -16,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class GBMModel:
-    """LightGBM model with optional quantile companions for confidence intervals."""
 
     def __init__(self, params: dict | None = None, with_quantiles: bool = True):
         self.params = params or LGB_PARAMS.copy()
@@ -31,13 +28,6 @@ class GBMModel:
               dval: lgb.Dataset | None = None,
               feature_names: list[str] | None = None,
               ) -> dict:
-        """Train the main model and optionally quantile models.
-
-        Accepts pre-built lgb.Dataset objects so the caller can free raw
-        numpy arrays before training begins (critical for memory).
-
-        Returns dict of training metrics.
-        """
         self.feature_names = feature_names or dtrain.feature_name
 
         callbacks = [lgb.log_evaluation(100)]
@@ -49,7 +39,6 @@ class GBMModel:
             valid_names.append("val")
             callbacks.append(lgb.early_stopping(LGB_EARLY_STOPPING_ROUNDS))
 
-        # Main model
         logger.info("Training main LightGBM model …")
         self.model = lgb.train(
             self.params,
@@ -62,7 +51,6 @@ class GBMModel:
 
         metrics = {"best_iteration": self.model.best_iteration}
 
-        # Quantile models for confidence intervals
         if self.with_quantiles:
             logger.info("Training quantile (α=0.1) model …")
             self.model_lo = lgb.train(
@@ -80,15 +68,10 @@ class GBMModel:
         return metrics
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Point predictions, clipped ≥ 0."""
         preds = self.model.predict(X, num_iteration=self.model.best_iteration)
         return np.clip(preds, 0, None)
 
     def predict_interval(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Point prediction + 80% confidence interval.
-
-        Returns (pred, lower, upper).
-        """
         pred = self.predict(X)
         if self.model_lo is not None and self.model_hi is not None:
             lower = np.clip(self.model_lo.predict(X), 0, None)
@@ -99,12 +82,10 @@ class GBMModel:
         return pred, lower, upper
 
     def feature_importance(self, importance_type: str = "gain") -> dict[str, float]:
-        """Return feature importances as a dict."""
         imp = self.model.feature_importance(importance_type=importance_type)
         return dict(zip(self.feature_names, imp))
 
     def save(self, path: Path | None = None) -> Path:
-        """Save all models to disk."""
         path = path or MODELS_DIR
         path.mkdir(parents=True, exist_ok=True)
 
@@ -119,7 +100,6 @@ class GBMModel:
 
     @classmethod
     def load(cls, path: Path | None = None) -> "GBMModel":
-        """Load models from disk."""
         path = path or MODELS_DIR
         model = cls(with_quantiles=False)
 

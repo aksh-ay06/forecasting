@@ -1,5 +1,3 @@
-"""Error distribution plots, residual diagnostics, and segment analysis."""
-
 import logging
 from pathlib import Path
 
@@ -15,21 +13,18 @@ logger = logging.getLogger(__name__)
 
 def plot_error_distribution(y_true: np.ndarray, y_pred: np.ndarray,
                             save_dir: Path | None = None) -> None:
-    """Histogram of prediction errors."""
     save_dir = save_dir or REPORTS_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
 
     errors = y_pred - y_true
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Raw error histogram
     axes[0].hist(errors, bins=100, edgecolor="black", alpha=0.7)
     axes[0].set_xlabel("Prediction Error (pred - actual)")
     axes[0].set_ylabel("Frequency")
     axes[0].set_title("Error Distribution")
     axes[0].axvline(0, color="red", linestyle="--", linewidth=1)
 
-    # Clipped for visibility
     clip_val = np.percentile(np.abs(errors), 99)
     clipped = errors[(errors > -clip_val) & (errors < clip_val)]
     axes[1].hist(clipped, bins=100, edgecolor="black", alpha=0.7)
@@ -46,11 +41,9 @@ def plot_error_distribution(y_true: np.ndarray, y_pred: np.ndarray,
 
 def plot_predicted_vs_actual(y_true: np.ndarray, y_pred: np.ndarray,
                              save_dir: Path | None = None) -> None:
-    """Scatter plot of predicted vs actual values."""
     save_dir = save_dir or REPORTS_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # Subsample for plotting performance
     n = len(y_true)
     if n > 50_000:
         idx = np.random.RandomState(42).choice(n, 50_000, replace=False)
@@ -76,7 +69,6 @@ def plot_predicted_vs_actual(y_true: np.ndarray, y_pred: np.ndarray,
 
 def plot_residuals(y_true: np.ndarray, y_pred: np.ndarray,
                    save_dir: Path | None = None) -> None:
-    """Residual diagnostics: residual vs predicted, and Q-Q-like plot."""
     save_dir = save_dir or REPORTS_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -90,14 +82,12 @@ def plot_residuals(y_true: np.ndarray, y_pred: np.ndarray,
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Residual vs predicted
     axes[0].scatter(y_pred_s, residuals_s, alpha=0.1, s=2)
     axes[0].axhline(0, color="red", linestyle="--")
     axes[0].set_xlabel("Predicted Demand")
     axes[0].set_ylabel("Residual (actual - predicted)")
     axes[0].set_title("Residuals vs Predicted")
 
-    # Residual histogram
     axes[1].hist(residuals_s, bins=100, edgecolor="black", alpha=0.7)
     axes[1].set_xlabel("Residual")
     axes[1].set_ylabel("Frequency")
@@ -116,7 +106,6 @@ def segment_error_analysis(df: pd.DataFrame,
                            segment_col: str,
                            top_n: int = 20,
                            save_dir: Path | None = None) -> None:
-    """Bar plot of RMSE by segment for the worst-performing segments."""
     save_dir = save_dir or REPORTS_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -141,7 +130,6 @@ def segment_error_analysis(df: pd.DataFrame,
 def generate_all_plots(y_true: np.ndarray, y_pred: np.ndarray,
                        df: pd.DataFrame | None = None,
                        save_dir: Path | None = None) -> None:
-    """Generate all diagnostic plots."""
     plot_error_distribution(y_true, y_pred, save_dir)
     plot_predicted_vs_actual(y_true, y_pred, save_dir)
     plot_residuals(y_true, y_pred, save_dir)

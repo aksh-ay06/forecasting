@@ -1,5 +1,3 @@
-"""Unit tests for the FastAPI serving endpoints."""
-
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
@@ -14,7 +12,6 @@ def client():
 
 @pytest.fixture(autouse=True)
 def mock_predictor():
-    """Mock the predictor to avoid loading real models in tests."""
     predictor.model = MagicMock()
     predictor.feature_cols = ["f0", "f1", "f2"]
     predictor.history = MagicMock()
@@ -53,7 +50,7 @@ class TestPredictEndpoint:
 
     def test_predict_invalid_semana(self, client):
         payload = {
-            "Semana": 0,  # Invalid: ge=3
+            "Semana": 0,
             "Agencia_ID": 1110,
             "Canal_ID": 7,
             "Ruta_SAK": 3301,

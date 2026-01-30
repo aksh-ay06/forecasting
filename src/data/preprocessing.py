@@ -1,5 +1,3 @@
-"""Merge metadata, label-encode, and save per-Semana parquet files."""
-
 import logging
 
 import pandas as pd
@@ -13,23 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 def preprocess_and_save() -> None:
-    """Full preprocessing pipeline.
-
-    1. Load raw train CSV.
-    2. Load + parse product metadata, load town metadata.
-    3. Merge metadata onto transactions.
-    4. Label-encode State.
-    5. Save per-Semana parquet files.
-    6. Save enriched product table for feature reuse.
-    """
-    # 1. Load raw data
     train = load_train_chunked()
 
-    # 2. Load metadata
     products, towns, _clients = load_metadata()
     products = enrich_product_table(products)
 
-    # 3. Merge
     logger.info("Merging product metadata …")
     train = train.merge(
         products[["Producto_ID", "brand", "weight_g", "pieces", "has_promo"]],
@@ -40,25 +26,34 @@ def preprocess_and_save() -> None:
     logger.info("Merging town/state metadata …")
     train = train.merge(towns, on="Agencia_ID", how="left")
 
-    # 4. Label-encode State
     le = LabelEncoder()
     train["State"] = train["State"].fillna("UNKNOWN")
-    train["State_encoded"] = le.fit_transform(train["State"]).astype("uint8")
+    n_states = train["State"].nunique()
+    state_dtype = "uint8" if n_states <= 255 else "uint16"
+    train["State_encoded"] = le.fit_transform(train["State"]).astype(state_dtype)
     train.drop(columns=["State", "Town"], inplace=True)
 
-    # Drop the product name column (not needed downstream)
     if "NombreProducto" in train.columns:
         train.drop(columns=["NombreProducto"], inplace=True)
 
-    # 5. Save parquet partitioned by Semana
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     save_parquet_by_semana(train, PROCESSED_DIR)
 
-    # 6. Save enriched product table
     FEATURES_DIR.mkdir(parents=True, exist_ok=True)
     products.to_parquet(FEATURES_DIR / "product_metadata.parquet", index=False)
 
-    # Save label encoder mapping for State
+    products[["Producto_ID", "brand"]].to_parquet(
+        FEATURES_DIR / "product_brand_map.parquet", index=False
+    )
+
+    brand_le = LabelEncoder()
+    brand_le.fit(products["brand"].fillna("UNK"))
+    brand_enc_df = pd.DataFrame({
+        "brand": brand_le.classes_,
+        "brand_encoded": range(len(brand_le.classes_)),
+    })
+    brand_enc_df.to_parquet(FEATURES_DIR / "brand_encoding.parquet", index=False)
+
     state_mapping = dict(zip(le.classes_, le.transform(le.classes_)))
     pd.DataFrame(list(state_mapping.items()), columns=["State", "State_encoded"]).to_parquet(
         FEATURES_DIR / "state_mapping.parquet", index=False

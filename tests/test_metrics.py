@@ -1,5 +1,3 @@
-"""Unit tests for evaluation metrics."""
-
 import pytest
 import numpy as np
 import pandas as pd
@@ -29,12 +27,12 @@ class TestScalarMetrics:
     def test_bias_positive(self):
         y_true = np.array([1.0, 2.0, 3.0])
         y_pred = np.array([2.0, 3.0, 4.0])
-        assert bias(y_true, y_pred) == 1.0  # over-predicting
+        assert bias(y_true, y_pred) == 1.0
 
     def test_bias_negative(self):
         y_true = np.array([2.0, 3.0, 4.0])
         y_pred = np.array([1.0, 2.0, 3.0])
-        assert bias(y_true, y_pred) == -1.0  # under-predicting
+        assert bias(y_true, y_pred) == -1.0
 
     def test_rmsle_perfect(self):
         y = np.array([1.0, 2.0, 3.0])
@@ -43,7 +41,6 @@ class TestScalarMetrics:
     def test_rmsle_clips_negative(self):
         y_true = np.array([0.0, 1.0])
         y_pred = np.array([-1.0, 1.0])
-        # Should not raise, negative clipped to 0
         result = rmsle(y_true, y_pred)
         assert result >= 0
 

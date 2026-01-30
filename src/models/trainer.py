@@ -1,5 +1,3 @@
-"""End-to-end training orchestration with MLflow tracking."""
-
 import ctypes
 import gc
 import logging
@@ -23,12 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 def _release_memory():
-    """Collect garbage and force glibc to return freed pages to the OS.
-
-    Without malloc_trim, Python/glibc hold freed heap pages in the
-    process address space indefinitely, bloating RSS and causing OOM
-    when large arrays are allocated later.
-    """
     gc.collect()
     try:
         ctypes.CDLL("libc.so.6").malloc_trim(0)
@@ -39,19 +31,6 @@ def _release_memory():
 def run_training(val_semana: int = VAL_SEMANA,
                  with_quantiles: bool = True,
                  log_mlflow: bool = True) -> dict:
-    """Full training pipeline.
-
-    1. Build features for train and validation sets.
-    2. Compute baseline metrics.
-    3. Train LightGBM.
-    4. Evaluate and log to MLflow.
-    5. Save model.
-
-    Returns dict with metrics.
-    """
-    # 1. Build training features semana by semana, spilling to disk.
-    #    Load data on-demand per iteration instead of holding all semanas
-    #    in memory at once, to keep peak RSS low.
     logger.info("Building training features for Semanas 4-%d …", val_semana - 1)
     FEATURES_DIR.mkdir(parents=True, exist_ok=True)
     train_feat_paths = []
@@ -71,7 +50,6 @@ def run_training(val_semana: int = VAL_SEMANA,
         del s_data, s_history, s_feats
         _release_memory()
 
-    # 2. Build validation features + baselines
     logger.info("Building features for validation Semana %d …", val_semana)
     history = load_parquet_semanas(list(range(3, val_semana)))
     val_raw = load_parquet_semanas([val_semana])
@@ -88,15 +66,12 @@ def run_training(val_semana: int = VAL_SEMANA,
     del history, val_raw, baseline_lag1_preds, baseline_ma_preds
     _release_memory()
 
-    # 3. Extract validation arrays, then free the DataFrame
     feature_cols = get_feature_columns(val_feats)
     X_val = val_feats[feature_cols].values.astype(np.float32)
     n_val_rows = len(val_feats)
     del val_feats
     _release_memory()
 
-    # 4. Reload training features from disk into pre-allocated arrays.
-    #    Pre-allocation avoids the 2× peak memory of np.vstack.
     n_train_rows = sum(train_row_counts)
     n_features = len(feature_cols)
     logger.info("Training features: %d rows × %d features", n_train_rows, n_features)
@@ -113,9 +88,6 @@ def run_training(val_semana: int = VAL_SEMANA,
         gc.collect()
         p.unlink(missing_ok=True)
 
-    # 5. Build LightGBM Datasets, then free raw numpy arrays before training.
-    #    This avoids holding ~10 GB of raw floats alongside LightGBM's internal
-    #    binned representation during tree construction.
     dtrain = lgb.Dataset(X_train, label=y_train,
                          feature_name=feature_cols,
                          categorical_feature="auto",
@@ -129,24 +101,20 @@ def run_training(val_semana: int = VAL_SEMANA,
     _release_memory()
     logger.info("LightGBM Datasets constructed; raw training arrays freed.")
 
-    # 6. Train GBM
     model = GBMModel(with_quantiles=with_quantiles)
     train_metrics = model.train(dtrain, dval, feature_names=feature_cols)
 
     del dtrain
     _release_memory()
 
-    # 7. Evaluate
     preds = model.predict(X_val)
     gbm_metrics = evaluate(y_val, preds)
     logger.info("GBM metrics:     %s", gbm_metrics)
 
-    # Feature importance
     importance = model.feature_importance()
     top_features = sorted(importance.items(), key=lambda x: -x[1])[:20]
     logger.info("Top features: %s", [(f, f"{v:.0f}") for f, v in top_features])
 
-    # 8. MLflow logging
     if log_mlflow:
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         mlflow.set_experiment(MLFLOW_EXPERIMENT)
@@ -165,14 +133,12 @@ def run_training(val_semana: int = VAL_SEMANA,
                 mlflow.log_metric(f"baseline_ma_{name}", val)
             mlflow.log_metric("best_iteration", train_metrics.get("best_iteration", 0))
 
-            # Log feature importance as artifact
             imp_df = pd.DataFrame(top_features, columns=["feature", "importance"])
             imp_path = REPORTS_DIR / "feature_importance.csv"
             REPORTS_DIR.mkdir(parents=True, exist_ok=True)
             imp_df.to_csv(imp_path, index=False)
             mlflow.log_artifact(str(imp_path))
 
-    # 9. Save model
     model.save()
 
     return {

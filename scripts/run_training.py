@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-"""Run model training pipeline."""
 
 import logging
 import sys
@@ -27,7 +26,6 @@ def main():
     print(f"Number of features:   {results['n_features']}")
     print("=" * 60)
 
-    # Check GBM beats baseline
     if results["gbm"]["rmse"] < results["baseline_lag1"]["rmse"]:
         print("GBM RMSE < Lag-1 baseline RMSE")
     else:

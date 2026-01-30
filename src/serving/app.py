@@ -1,5 +1,3 @@
-"""FastAPI application for demand prediction serving."""
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -19,7 +17,6 @@ predictor = Predictor()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model on startup."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logger.info("Loading model and feature stores …")
     try:
@@ -40,7 +37,6 @@ app = FastAPI(
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: PredictionRequest):
-    """Predict demand for a single (client, product, route, week) tuple."""
     if not predictor.is_loaded:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
@@ -58,7 +54,6 @@ async def predict(request: PredictionRequest):
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
 async def predict_batch(request: BatchPredictionRequest):
-    """Predict demand for a batch of requests."""
     if not predictor.is_loaded:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
@@ -81,7 +76,6 @@ async def predict_batch(request: BatchPredictionRequest):
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    """Health check endpoint."""
     return HealthResponse(
         status="healthy" if predictor.is_loaded else "degraded",
         model_loaded=predictor.is_loaded,
