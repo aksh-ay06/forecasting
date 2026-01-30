@@ -27,35 +27,24 @@ class GBMModel:
         self.feature_names: list[str] = []
 
     def train(self,
-              X_train: np.ndarray,
-              y_train: np.ndarray,
-              X_val: np.ndarray | None = None,
-              y_val: np.ndarray | None = None,
+              dtrain: lgb.Dataset,
+              dval: lgb.Dataset | None = None,
               feature_names: list[str] | None = None,
-              categorical_features: list[str] | None = None,
               ) -> dict:
         """Train the main model and optionally quantile models.
 
+        Accepts pre-built lgb.Dataset objects so the caller can free raw
+        numpy arrays before training begins (critical for memory).
+
         Returns dict of training metrics.
         """
-        self.feature_names = feature_names or [f"f{i}" for i in range(X_train.shape[1])]
-
-        cat_feats = categorical_features or "auto"
-
-        dtrain = lgb.Dataset(X_train, label=y_train,
-                             feature_name=self.feature_names,
-                             categorical_feature=cat_feats,
-                             free_raw_data=False)
+        self.feature_names = feature_names or dtrain.feature_name
 
         callbacks = [lgb.log_evaluation(100)]
         valid_sets = [dtrain]
         valid_names = ["train"]
 
-        if X_val is not None and y_val is not None:
-            dval = lgb.Dataset(X_val, label=y_val,
-                               feature_name=self.feature_names,
-                               categorical_feature=cat_feats,
-                               free_raw_data=False)
+        if dval is not None:
             valid_sets.append(dval)
             valid_names.append("val")
             callbacks.append(lgb.early_stopping(LGB_EARLY_STOPPING_ROUNDS))

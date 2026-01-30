@@ -76,5 +76,7 @@ def build_features(target_df: pd.DataFrame,
 
 
 def get_feature_columns(df: pd.DataFrame) -> list[str]:
-    """Return the list of feature column names (excluding IDs and target)."""
-    return [c for c in df.columns if c not in ID_COLS and c != TARGET_COL]
+    """Return the list of numeric feature column names (excluding IDs and target)."""
+    return [c for c in df.columns
+            if c not in ID_COLS and c != TARGET_COL
+            and df[c].dtype.kind in ("f", "i", "u", "b")]

@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 
 def _compute_level_means(history: pd.DataFrame, brand_map: pd.DataFrame) -> list[pd.DataFrame]:
     """Compute mean demand at each backoff level."""
-    h = history.copy()
-    # Merge brand info
-    if "brand" not in h.columns:
-        h = h.merge(brand_map, on="Producto_ID", how="left")
+    if "brand" not in history.columns:
+        h = history.merge(brand_map, on="Producto_ID", how="left")
         h["brand"] = h["brand"].fillna("UNK")
+    else:
+        h = history
 
     global_mean = h[TARGET_COL].mean()
 
@@ -80,7 +80,8 @@ def build_backoff_features(target_df: pd.DataFrame,
     -------
     target_df with two new columns: backoff_level (0-5) and backoff_estimate.
     """
-    hist = history[history["Semana"] < target_semana]
+    # Caller guarantees history contains only Semana < target_semana
+    hist = history
 
     # Load brand map
     brand_path = FEATURES_DIR / "product_brand_map.parquet"
@@ -106,7 +107,8 @@ def build_backoff_features(target_df: pd.DataFrame,
     global_mean = levels[5]["backoff_est_5"].iloc[0]
 
     # Determine backoff level and estimate (first available)
-    est_cols = [f"backoff_est_{i}" for i in range(6)]
+    # Levels 0-4 are merged as columns; level 5 (global) is applied directly
+    est_cols = [f"backoff_est_{i}" for i in range(5)]
     df["backoff_estimate"] = np.nan
     df["backoff_level"] = 5  # default: global
 

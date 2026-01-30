@@ -26,7 +26,8 @@ def build_agg_features(history: pd.DataFrame, target_semana: int) -> dict[str, p
     Each DataFrame is keyed by the group columns and can be merged onto
     the target data.
     """
-    df = history[history["Semana"] < target_semana].copy()
+    # Caller guarantees history contains only Semana < target_semana
+    df = history
     result = {}
 
     for name, keys in AGG_GROUP_KEYS.items():

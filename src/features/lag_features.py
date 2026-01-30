@@ -26,9 +26,10 @@ def build_lag_features(history: pd.DataFrame, target_semana: int) -> pd.DataFram
     -------
     DataFrame indexed by (Cliente_ID, Producto_ID) with lag/rolling columns.
     """
-    df = history[history["Semana"] < target_semana].copy()
-    if df.empty:
+    # Caller guarantees history contains only Semana < target_semana
+    if history.empty:
         return pd.DataFrame()
+    df = history
 
     # Pivot: one row per (client, product, semana)
     demand = (
@@ -49,9 +50,9 @@ def build_lag_features(history: pd.DataFrame, target_semana: int) -> pd.DataFram
         features = features.merge(lag_df, on=GROUP_KEYS, how="left")
 
     # Rolling statistics over the most recent `w` weeks
+    valid_semanas = sorted(s for s in demand["Semana"].unique() if s < target_semana)
     for w in ROLLING_WINDOWS:
-        valid_semanas = sorted(demand["Semana"].unique())
-        recent = [s for s in valid_semanas if s < target_semana][-w:]
+        recent = valid_semanas[-w:]
         sub = demand[demand["Semana"].isin(recent)]
         agg = sub.groupby(GROUP_KEYS)[TARGET_COL].agg(
             **{
@@ -65,6 +66,10 @@ def build_lag_features(history: pd.DataFrame, target_semana: int) -> pd.DataFram
     # Fill NaN rolling_std with 0
     std_cols = [c for c in features.columns if "rolling_std" in c]
     features[std_cols] = features[std_cols].fillna(0)
+
+    # Downcast to float32 to reduce memory (~50% savings on feature columns)
+    float_cols = [c for c in features.columns if c not in GROUP_KEYS]
+    features[float_cols] = features[float_cols].astype(np.float32)
 
     logger.info("Built %d lag/rolling features for target_semana=%d on %d groups",
                 len([c for c in features.columns if c not in GROUP_KEYS]),
